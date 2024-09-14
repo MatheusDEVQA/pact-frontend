@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import br.ce.wcaquino.tasksfrontend.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,14 +23,23 @@ public class TasksController {
 
 	@Value("${backend.port}")
 	private String BACKEND_PORT;
-	
+
 	public String getBackendURL() {
 		return "http://" + BACKEND_HOST + ":" + BACKEND_PORT;
+	}
+
+	private TaskRepository taskRepo;
+
+	public TaskRepository getTaskRepo(){
+		if(taskRepo == null){
+			taskRepo = new TaskRepository("http://" + BACKEND_HOST + ":" + BACKEND_PORT);
+		}
+		return  taskRepo;
 	}
 	
 	@GetMapping("")
 	public String index(Model model) {
-		model.addAttribute("todos", getTodos());
+		model.addAttribute("todos", taskRepo.getTodos());
 		return "index";
 	}
 	
@@ -44,10 +54,9 @@ public class TasksController {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			if(todo.getId() == null) {
-				restTemplate.postForObject(
-						getBackendURL() + "/todo", todo, Object.class);				
+				taskRepo.save(todo);
 			} else {
-				restTemplate.put(getBackendURL() + "/todo/" + todo.getId(), todo);
+				taskRepo.update(todo);
 			}
 			model.addAttribute("sucess", "Sucess!");
 			return "index";
@@ -59,36 +68,28 @@ public class TasksController {
 			model.addAttribute("todo", todo);
 			return "add"; 
 		} finally {
-			model.addAttribute("todos", getTodos());
+			model.addAttribute("todos", taskRepo.getTodos());
 		}
 	}
 	
 	@GetMapping("delete/{id}")
 	public String delete(@PathVariable Long id, Model model) {
-		RestTemplate restTemplate = new RestTemplate();
-		restTemplate.delete(getBackendURL() + "/todo/" + id);			
+		taskRepo.delete(id);
 		model.addAttribute("success", "Success!");
-		model.addAttribute("todos", getTodos());
+		model.addAttribute("todos", taskRepo.getTodos());
 		return "index";
 	}
 	
 	@GetMapping("edit/{id}")
 	public String edit(@PathVariable Long id, Model model) {
-		RestTemplate restTemplate = new RestTemplate();
-		Todo todo = restTemplate.getForObject(getBackendURL() + "/todo/" + id, Todo.class);
+		Todo todo = taskRepo.get(id);
 		if(todo == null) {
 			model.addAttribute("error", "Invalid Task");
-			model.addAttribute("todos", getTodos());
+			model.addAttribute("todos", taskRepo.getTodos());
 			return "index";
 		}
 		model.addAttribute("todo", todo);
 		return "add";
 	}
-	
-	@SuppressWarnings("unchecked")
-	private List<Todo> getTodos() {
-		RestTemplate restTemplate = new RestTemplate();
-		return restTemplate.getForObject(
-				getBackendURL() + "/todo", List.class);
-	}
+
 }
